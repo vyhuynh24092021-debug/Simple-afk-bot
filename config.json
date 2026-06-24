@@ -3,7 +3,7 @@
   "port": 19132,
   "username": "AFKBot",
   "offline": false,
-  "version": "1.21.0",
+  "version": "1.26.30",
 
   "moveIntervalSeconds": 5,
   "reconnectDelaySeconds": 10,
