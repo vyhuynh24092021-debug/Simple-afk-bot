@@ -20,6 +20,7 @@ const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), '
 let client = null
 let moveTimer = null
 let reconnecting = false
+let failCount = 0
 
 function log(...args) {
   const time = new Date().toLocaleTimeString('vi-VN')
@@ -27,7 +28,7 @@ function log(...args) {
 }
 
 function connect() {
-  log(`Đang kết nối tới ${config.host}:${config.port} với tên "${config.username}"...`)
+  log(`Đang kết nối tới ${config.host}:${config.port} với tên "${config.username}"... (lần thử #${failCount + 1})`)
 
   client = bedrock.createClient({
     host: config.host,
@@ -43,6 +44,7 @@ function connect() {
 
   client.on('spawn', () => {
     log('✅ Bot đã spawn thành công. Đang giữ chunk loaded...')
+    failCount = 0
     startAntiAfkLoop()
   })
 
@@ -90,14 +92,20 @@ function startAntiAfkLoop() {
 function cleanupAndReconnect() {
   if (reconnecting) return
   reconnecting = true
+  failCount++
 
   if (moveTimer) {
     clearInterval(moveTimer)
     moveTimer = null
   }
 
-  const delay = (config.reconnectDelaySeconds || 10) * 1000
-  log(`Sẽ tự kết nối lại sau ${delay / 1000} giây...`)
+  const baseDelay = (config.reconnectDelaySeconds || 10) * 1000
+  // Backoff nhẹ: tăng dần theo số lần fail liên tiếp, tối đa 60s,
+  // để không spam liên tục khi server tắt hẳn lâu, nhưng vẫn đủ nhanh
+  // để bắt được lúc server vừa lên lại.
+  const delay = Math.min(baseDelay * Math.min(failCount, 6), 60000)
+
+  log(`Server chưa sẵn sàng hoặc rớt kết nối (lần fail #${failCount}). Thử lại sau ${delay / 1000}s...`)
 
   setTimeout(() => {
     reconnecting = false
