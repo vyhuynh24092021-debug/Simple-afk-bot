@@ -1,0 +1,9 @@
+{
+  "name": "afk-bot-bedrock",
+  "version": "1.0.0",
+  "description": "Bot AFK đơn giản cho Minecraft Bedrock, dùng để giữ chunk loaded trên server riêng (cần có sự cho phép của admin).",
+  "main": "bot.js",
+  "dependencies": {
+    "bedrock-protocol": "^3.0.0"
+  }
+}
