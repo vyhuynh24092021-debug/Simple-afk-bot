@@ -1,10 +1,16 @@
 {
-  "host": "Ip server",
+  "host": "ĐIỀN_IP_SERVER_VÀO_ĐÂY",
   "port": 19132,
   "username": "AFKBot",
   "offline": false,
   "version": "1.21.0",
 
-  "moveIntervalSeconds": 60,
-  "reconnectDelaySeconds": 10
+  "moveIntervalSeconds": 5,
+  "reconnectDelaySeconds": 10,
+
+  "farmPosition": {
+    "x": 270,
+    "y": 78,
+    "z": -399
+  }
 }
