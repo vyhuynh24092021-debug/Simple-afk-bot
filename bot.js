@@ -48,6 +48,24 @@ function connect() {
     startAntiAfkLoop()
   })
 
+  // Khi bot chết (vd: đói lâu quá không xử lý, bị mob đánh, rơi xuống...),
+  // server sẽ gửi gói 'respawn' với respawn_position. Bedrock yêu cầu client
+  // PHẢI gửi lại gói respawn xác nhận (client_request) thì mới được hồi sinh,
+  // không tự động — nếu không gửi, bot sẽ treo ở màn hình chết.
+  client.on('respawn', (packet) => {
+    log('💀 Bot đã chết / nhận gói respawn từ server, đang xác nhận hồi sinh...')
+    try {
+      client.write('respawn', {
+        position: packet.position,
+        state: 'client_ready',
+        runtime_entity_id: client.entity ? client.entity.runtimeEntityId : 0n
+      })
+      log('🔄 Đã gửi xác nhận respawn, bot sẽ hồi sinh tại điểm giường đã set.')
+    } catch (e) {
+      log('Không gửi được gói respawn:', e.message)
+    }
+  })
+
   client.on('disconnect', (packet) => {
     log('❌ Bị server disconnect:', packet && packet.message ? packet.message : packet)
     cleanupAndReconnect()
@@ -72,21 +90,55 @@ function connect() {
 function startAntiAfkLoop() {
   if (moveTimer) clearInterval(moveTimer)
 
+  let jumpToggle = false
+
+  // Bedrock client PHẢI gửi player_auth_input liên tục để báo "tôi vẫn ở đây" —
+  // không gửi thì server không có gì để giữ chunk loaded quanh bot, và sau một
+  // thời gian sẽ coi client là treo/timeout.
+  //
+  // QUAN TRỌNG: gói này KHÔNG dùng để "ép" server dịch chuyển bot tới toạ độ farm.
+  // Server luôn validate vị trí dựa trên input di chuyển thực tế gửi lên; nếu bot
+  // tự nhảy cóc toạ độ mà không có chuỗi input di chuyển hợp lý dẫn tới đó, gần như
+  // chắc chắn server sẽ snap-back vị trí cũ hoặc kick vì coi là invalid movement.
+  // => Vị trí farm phải đạt được bằng cách dắt bot tới đó 1 lần qua client thật
+  // (server lưu last-position khi disconnect), bot ở đây chỉ giữ nguyên vị trí đó.
   moveTimer = setInterval(() => {
-    if (!client || !client.entityId) return
+    // client.entity có thể chưa kịp khởi tạo ngay sau spawn — guard kỹ để tránh
+    // crash toàn bộ process vì đọc property của undefined.
+    if (!client || !client.entity || !client.entity.position) return
+
     try {
-      // Gửi gói player_action kiểu "swing arm" / nhún nhẹ để báo hiệu còn hoạt động
-      // Đây là động tác tối thiểu, không di chuyển vị trí, không phá block
-      client.queue('interact', {
-        action_id: 'mouse_over_entity',
-        target_entity_id: 0n,
-        position: { x: 0, y: 0, z: 0 }
+      jumpToggle = !jumpToggle
+      const pos = client.entity.position
+
+      client.queue('player_auth_input', {
+        pitch: 0,
+        yaw: 0,
+        position: pos,
+        move_vector: { x: 0, z: 0 },
+        head_yaw: 0,
+        // input_data phải là object chứa các cờ boolean, không phải array —
+        // truyền sai kiểu sẽ khiến thư viện không encode được gói tin và crash.
+        input_data: {
+          forward: false,
+          backward: false,
+          left: false,
+          right: false,
+          jump_down: jumpToggle, // nhún nhẹ xen kẽ mỗi chu kỳ, vô hại, giúp tránh AFK-detect đơn giản
+          sneak_down: false,
+          asynchronous_input: true
+        },
+        input_mode: 'mouse',
+        play_mode: 'normal',
+        interact_rotation: { x: 0, y: 0 },
+        tick: BigInt(Date.now()),
+        delta: { x: 0, y: 0, z: 0 }
       })
-      log('🔄 Đã gửi tín hiệu giữ trạng thái hoạt động (anti-AFK ping).')
+      log(`🔄 Đã gửi tick giữ vị trí tại X:${pos.x?.toFixed?.(1)} Y:${pos.y?.toFixed?.(1)} Z:${pos.z?.toFixed?.(1)}`)
     } catch (e) {
-      log('Không gửi được tín hiệu anti-AFK:', e.message)
+      log('Không gửi được tick anti-AFK:', e.message)
     }
-  }, (config.moveIntervalSeconds || 60) * 1000)
+  }, (config.moveIntervalSeconds || 5) * 1000)
 }
 
 function cleanupAndReconnect() {
