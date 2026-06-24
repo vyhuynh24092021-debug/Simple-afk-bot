@@ -1,8 +1,8 @@
 {
-  "host": "ĐIỀN_IP_SERVER_VÀO_ĐÂY",
+  "host": "Ip server",
   "port": 19132,
   "username": "AFKBot",
-  "offline": true,
+  "offline": false,
   "version": "1.21.0",
 
   "moveIntervalSeconds": 60,
